@@ -23,90 +23,87 @@ import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 public class BlockPlayerListener implements Listener {
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void cancelOpenSignOnClick(PlayerInteractEvent e) {
+        if (e.getClickedBlock() == null)return;
+        if (!e.getAction().equals(Action.RIGHT_CLICK_BLOCK))return;
+        if (!Tag.SIGNS.isTagged(e.getClickedBlock().getType()))return;
+        if (!LocketteProAPI.isLockSign(e.getClickedBlock()) && !LocketteProAPI.isAdditionalSign(e.getClickedBlock()))return;
+        e.setCancelled(true);
+    }
 
     // Quick protect for chests
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
-    public void onPlayerQuickLockChest(PlayerInteractEvent event){
-        // Check quick lock enabled
+    public void onPlayerQuickLockChest(PlayerInteractEvent event) {
         if (Config.getQuickProtectAction() == (byte)0) return;
-        // Get player and action info
-        Action action = event.getAction();
         Player player = event.getPlayer();
-        // Check action correctness
-        if (action == Action.RIGHT_CLICK_BLOCK && Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) {
-            if (player.getGameMode().equals(GameMode.SPECTATOR)) {
-                return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && !Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
+        if (player.getGameMode().equals(GameMode.SPECTATOR)) return;
+        if (!((event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)2) ||
+                (!event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)1))) return;
+        if (!player.hasPermission("lockettepro.lock")) return;
+        BlockFace blockface = event.getBlockFace();
+        if (!Arrays.asList(BlockFace.NORTH, BlockFace.WEST, BlockFace.SOUTH, BlockFace.EAST).contains(blockface)) return;
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+        if (Dependency.isProtectedFrom(block, player)) return; // blockwise
+        if (Dependency.isProtectedFrom(block.getRelative(event.getBlockFace()), player)) return; // signwise
+        // Check whether locking location is obstructed
+        Block signLoc = block.getRelative(blockface);
+        if (!signLoc.isEmpty()) return;
+        // Check whether this block is lockable
+        if (!LocketteProAPI.isLockable(block))return;
+        // Is this block already locked?
+        boolean locked = LocketteProAPI.isLocked(block);
+        // Cancel event here
+        event.setCancelled(true);
+        // Check lock info
+        if (!locked && !LocketteProAPI.isUpDownLockedDoor(block)) {
+            Material signType = player.getInventory().getItemInMainHand().getType();
+            // Not locked, not a locked door nearby
+            Utils.removeASign(player);
+            // Send message
+            Utils.sendMessages(player, Config.getLang("locked-quick"));
+            // Put sign on
+            Block newsign = Utils.putSignOn(block, blockface, Config.getDefaultPrivateString(), player.getName(), signType);
+            Utils.resetCache(block);
+            // Cleanups - UUID
+            if (Config.isUuidEnabled()){
+                Utils.updateLineByPlayer(newsign, 1, player);
             }
-            // Check quick lock action correctness
-            if (!((event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)2) ||
-                    (!event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)1))) return;
-            // Check permission 
-            if (!player.hasPermission("lockettepro.lock")) return;
-            // Get target block to lock
-            BlockFace blockface = event.getBlockFace();
-            if (blockface == BlockFace.NORTH || blockface == BlockFace.WEST || blockface == BlockFace.EAST || blockface == BlockFace.SOUTH){
-                Block block = event.getClickedBlock();
-                if (block == null) return;
-                // Check permission with external plugin
-                if (Dependency.isProtectedFrom(block, player)) return; // blockwise
-                if (Dependency.isProtectedFrom(block.getRelative(event.getBlockFace()), player)) return; // signwise
-                // Check whether locking location is obstructed
-                Block signLoc = block.getRelative(blockface);
-                if (!signLoc.isEmpty()) return;
-                // Check whether this block is lockable
-                if (LocketteProAPI.isLockable(block)){
-                    // Is this block already locked?
-                    boolean locked = LocketteProAPI.isLocked(block);
-                    // Cancel event here
-                    event.setCancelled(true);
-                    // Check lock info info
-                    if (!locked && !LocketteProAPI.isUpDownLockedDoor(block)){
-                    	Material signType = player.getInventory().getItemInMainHand().getType();
-                        // Not locked, not a locked door nearby
-                        Utils.removeASign(player);
-                        // Send message
-                        Utils.sendMessages(player, Config.getLang("locked-quick"));
-                        // Put sign on
-                        Block newsign = Utils.putSignOn(block, blockface, Config.getDefaultPrivateString(), player.getName(), signType);
-                        Utils.resetCache(block);
-                        // Cleanups - UUID
-                        if (Config.isUuidEnabled()){
-                            Utils.updateLineByPlayer(newsign, 1, player);
-                        }
-                        // Cleanups - Expiracy
-                        if (Config.isLockExpire()) {
-                            if (player.hasPermission("lockettepro.noexpire")) {
-                                Utils.updateLineWithTime(newsign, true); // set created to -1 (no expire)
-                            } else {
-                                Utils.updateLineWithTime(newsign, false); // set created to now
-                            }
-                        }
-                        Dependency.logPlacement(player, newsign);
-                    } else if (!locked && LocketteProAPI.isOwnerUpDownLockedDoor(block, player)){
-                        // Not locked, (is locked door nearby), is owner of locked door nearby
-                        Material signType = player.getInventory().getItemInMainHand().getType();
-                        Utils.removeASign(player);
-                        Utils.sendMessages(player, Config.getLang("additional-sign-added-quick"));
-                        Utils.putSignOn(block, blockface, Config.getDefaultAdditionalString(), "", signType);
-                        Dependency.logPlacement(player, block.getRelative(blockface));
-                    } else if (LocketteProAPI.isOwner(block, player)) {
-                        // Locked, (not locked door nearby), is owner of locked block
-                        Material signType = player.getInventory().getItemInMainHand().getType();
-                        Utils.removeASign(player);
-                        Utils.putSignOn(block, blockface, Config.getDefaultAdditionalString(), "", signType);
-                        Utils.sendMessages(player, Config.getLang("additional-sign-added-quick"));
-                        Dependency.logPlacement(player, block.getRelative(blockface));
-                    } else {
-                        // Cannot lock this block
-                        Utils.sendMessages(player, Config.getLang("cannot-lock-quick"));
-                    }
-                }
+            // Cleanups - Expiracy
+            if (Config.isLockExpire()) {
+                // set created to now
+                Utils.updateLineWithTime(newsign, player.hasPermission("lockettepro.noexpire")); // set created to -1 (no expire)
             }
+            Dependency.logPlacement(player, newsign);
+            return;
         }
+        if (!locked && LocketteProAPI.isOwnerUpDownLockedDoor(block, player)){
+            // Not locked, (is locked door nearby), is owner of locked door nearby
+            Material signType = player.getInventory().getItemInMainHand().getType();
+            Utils.removeASign(player);
+            Utils.sendMessages(player, Config.getLang("additional-sign-added-quick"));
+            Utils.putSignOn(block, blockface, Config.getDefaultAdditionalString(), "", signType);
+            Dependency.logPlacement(player, block.getRelative(blockface));
+            return;
+        }
+        if (LocketteProAPI.isOwner(block, player)) {
+            // Locked, (not locked door nearby), is owner of locked block
+            Material signType = player.getInventory().getItemInMainHand().getType();
+            Utils.removeASign(player);
+            Utils.putSignOn(block, blockface, Config.getDefaultAdditionalString(), "", signType);
+            Utils.sendMessages(player, Config.getLang("additional-sign-added-quick"));
+            Dependency.logPlacement(player, block.getRelative(blockface));
+            return;
+        }
+        // Cannot lock this block
+        Utils.sendMessages(player, Config.getLang("cannot-lock-quick"));
     }
     
     // Manual protection
@@ -126,7 +123,7 @@ public class BlockPlayerListener implements Listener {
          *  Currently this is fixed by using trimmed line in checking permission. Trimmed
          *  line should not be used anywhere else.  
          */
-        if (!player.hasPermission("lockettepro.lock")){
+        if (!player.hasPermission("lockettepro.lock")) {
             String toplinetrimmed = topline.trim();
             if (LocketteProAPI.isLockString(toplinetrimmed) || LocketteProAPI.isAdditionalString(toplinetrimmed)){
                 event.setLine(0, Config.getLang("sign-error"));
@@ -134,51 +131,55 @@ public class BlockPlayerListener implements Listener {
                 return;
             }
         }
-        if (LocketteProAPI.isLockString(topline) || LocketteProAPI.isAdditionalString(topline)){
-            Block block = LocketteProAPI.getAttachedBlock(event.getBlock());
-            if (LocketteProAPI.isLockable(block)){
-                if (Dependency.isProtectedFrom(block, player)){ // External check here
-                    event.setLine(0, Config.getLang("sign-error"));
-                    Utils.sendMessages(player, Config.getLang("cannot-lock-manual"));
-                    return; 
-                }
-                boolean locked = LocketteProAPI.isLocked(block);
-                if (!locked && !LocketteProAPI.isUpDownLockedDoor(block)){
-                    if (LocketteProAPI.isLockString(topline)){
-                        Utils.sendMessages(player, Config.getLang("locked-manual"));
-                        if (!player.hasPermission("lockettepro.lockothers")){ // Player with permission can lock with another name
-                            event.setLine(1, player.getName());
-                        }
-                        Utils.resetCache(block);
-                    } else {
-                        Utils.sendMessages(player, Config.getLang("not-locked-yet-manual"));
-                        event.setLine(0, Config.getLang("sign-error"));
-                    }
-                } else if (!locked && LocketteProAPI.isOwnerUpDownLockedDoor(block, player)){
-                    if (LocketteProAPI.isLockString(topline)){
-                        Utils.sendMessages(player, Config.getLang("cannot-lock-door-nearby-manual"));
-                        event.setLine(0, Config.getLang("sign-error"));
-                    } else {
-                        Utils.sendMessages(player, Config.getLang("additional-sign-added-manual"));
-                    }
-                } else if (LocketteProAPI.isOwner(block, player)){
-                    if (LocketteProAPI.isLockString(topline)){
-                        Utils.sendMessages(player, Config.getLang("block-already-locked-manual"));
-                        event.setLine(0, Config.getLang("sign-error"));
-                    } else {
-                        Utils.sendMessages(player, Config.getLang("additional-sign-added-manual"));
-                    }
-                } else { // Not possible to fall here except override
-                    Utils.sendMessages(player, Config.getLang("block-already-locked-manual"));
-                    event.getBlock().breakNaturally();
-                    Utils.playAccessDenyEffect(player, block);
-                }
-            } else {
-                Utils.sendMessages(player, Config.getLang("block-is-not-lockable"));
+        if (!LocketteProAPI.isLockString(topline) && !LocketteProAPI.isAdditionalString(topline)) return;
+        Block block = LocketteProAPI.getAttachedBlock(event.getBlock());
+        if (LocketteProAPI.isLockable(block)) {
+            if (Dependency.isProtectedFrom(block, player)){ // External check here
                 event.setLine(0, Config.getLang("sign-error"));
-                Utils.playAccessDenyEffect(player, block);
+                Utils.sendMessages(player, Config.getLang("cannot-lock-manual"));
+                return;
             }
+            boolean locked = LocketteProAPI.isLocked(block);
+            if (!locked && !LocketteProAPI.isUpDownLockedDoor(block)){
+                if (LocketteProAPI.isLockString(topline)){
+                    Utils.sendMessages(player, Config.getLang("locked-manual"));
+                    if (!player.hasPermission("lockettepro.lockothers")){ // Player with permission can lock with another name
+                        event.setLine(1, player.getName());
+                    }
+                    Utils.resetCache(block);
+                    return;
+                }
+                Utils.sendMessages(player, Config.getLang("not-locked-yet-manual"));
+                event.setLine(0, Config.getLang("sign-error"));
+                return;
+            }
+            if (!locked && LocketteProAPI.isOwnerUpDownLockedDoor(block, player)) {
+                if (LocketteProAPI.isLockString(topline)){
+                    Utils.sendMessages(player, Config.getLang("cannot-lock-door-nearby-manual"));
+                    event.setLine(0, Config.getLang("sign-error"));
+                    return;
+                }
+                Utils.sendMessages(player, Config.getLang("additional-sign-added-manual"));
+                return;
+            }
+            if (LocketteProAPI.isOwner(block, player)) {
+                if (LocketteProAPI.isLockString(topline)){
+                    Utils.sendMessages(player, Config.getLang("block-already-locked-manual"));
+                    event.setLine(0, Config.getLang("sign-error"));
+                    return;
+                }
+                Utils.sendMessages(player, Config.getLang("additional-sign-added-manual"));
+                return;
+            }
+            // Not possible to fall here except override
+            Utils.sendMessages(player, Config.getLang("block-already-locked-manual"));
+            event.getBlock().breakNaturally();
+            Utils.playAccessDenyEffect(player, block);
+            return;
         }
+        Utils.sendMessages(player, Config.getLang("block-is-not-lockable"));
+        event.setLine(0, Config.getLang("sign-error"));
+        Utils.playAccessDenyEffect(player, block);
     }
     
     // Player select sign
@@ -247,7 +248,7 @@ public class BlockPlayerListener implements Listener {
     // Protect block from being used & handle double doors
     @EventHandler(priority = EventPriority.HIGH)
     public void onAttemptInteractLockedBlocks(PlayerInteractEvent event) {
-    	if (event.hasBlock() == false) return;
+    	if (!event.hasBlock()) return;
         if (Objects.equals(event.getHand(), EquipmentSlot.OFF_HAND)) return;
         Action action = event.getAction();
         Block block = event.getClickedBlock();
