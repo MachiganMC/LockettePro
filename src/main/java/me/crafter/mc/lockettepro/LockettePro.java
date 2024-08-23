@@ -130,11 +130,11 @@ public class LockettePro extends JavaPlugin {
                 switch (args[0]){
                 case "reload":
                     if (sender.hasPermission("lockettepro.reload")){
-                        if(Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
+                        if(isProtocolibEnable()) {
                             DependencyProtocolLib.cleanUpProtocolLib(this);
                         }
                         Config.reload();
-                        if (Config.isUuidEnabled() && Bukkit.getPluginManager().getPlugin("ProtocolLib") != null) {
+                        if (Config.isUuidEnabled() && isProtocolibEnable()) {
                             DependencyProtocolLib.setUpProtocolLib(this);
                         }
                         Utils.sendMessages(sender, Config.getLang("config-reloaded"));
@@ -163,7 +163,7 @@ public class LockettePro extends JavaPlugin {
                             sender.sendMessage("Expire: " + Config.isLockExpire() + " " + (Config.isLockExpire() ? Config.getLockExpireDays() : ""));
                             // ProtocolLib
                             sender.sendMessage("ProtocolLib info:");
-                            if (Bukkit.getPluginManager().getPlugin("ProtocolLib") == null) {
+                            if (isProtocolibEnable()) {
                                 sender.sendMessage(" - ProtocolLib missing");
                             } else {
                                 sender.sendMessage(" - ProtocolLib: " + Bukkit.getPluginManager().getPlugin("ProtocolLib").getDescription().getVersion());
@@ -287,5 +287,9 @@ public class LockettePro extends JavaPlugin {
         }
         return true;
     }
-    
+
+    private static boolean isProtocolibEnable() {
+        Plugin protocolLib = Bukkit.getPluginManager().getPlugin("ProtocolLib");
+        return protocolLib != null && protocolLib.isEnabled();
+    }
 }
