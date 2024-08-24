@@ -268,7 +268,15 @@ public class BlockPlayerListener implements Listener {
         case LEFT_CLICK_BLOCK:
         case RIGHT_CLICK_BLOCK:
             Player player = event.getPlayer();
-            if (((LocketteProAPI.isLocked(block) && !LocketteProAPI.isUser(block, player)) || (LocketteProAPI.isUpDownLockedDoor(block) && !LocketteProAPI.isUserUpDownLockedDoor(block, player))) && !player.hasPermission("lockettepro.admin.use")){
+            if (
+                    (
+                            (
+                                    LocketteProAPI.isLocked(block) && !LocketteProAPI.isUser(block, player)
+                            ) || (
+                                    LocketteProAPI.isUpDownLockedDoor(block) && !LocketteProAPI.isUserUpDownLockedDoor(block, player)
+                            )
+                    ) && !player.hasPermission("lockettepro.admin.use")
+            ){
                 Utils.sendMessages(player, Config.getLang("block-is-locked"));
                 event.setCancelled(true);
                 Utils.playAccessDenyEffect(player, block);
@@ -279,7 +287,7 @@ public class BlockPlayerListener implements Listener {
                         org.bukkit.block.data.Openable openablestate = (org.bukkit.block.data.Openable ) doorblock.getBlockData();
                         boolean shouldopen = !openablestate.isOpen(); // Move to here
                         int closetime = LocketteProAPI.getTimerDoor(doorblock);
-                        List<Block> doors = new ArrayList<Block>();
+                        List<Block> doors = new ArrayList<>();
                         doors.add(doorblock);
                         if (doorblock.getType() == Material.IRON_DOOR || doorblock.getType() == Material.IRON_TRAPDOOR){
                             LocketteProAPI.toggleDoor(doorblock, shouldopen);
