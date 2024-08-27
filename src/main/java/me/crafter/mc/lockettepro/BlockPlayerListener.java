@@ -42,7 +42,7 @@ public class BlockPlayerListener implements Listener {
     public void onPlayerQuickLockChest(PlayerInteractEvent event) {
         if (Config.getQuickProtectAction() == (byte)0) return;
         Player player = event.getPlayer();
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && !Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || !Tag.SIGNS.isTagged(player.getInventory().getItemInMainHand().getType())) return;
         if (player.getGameMode().equals(GameMode.SPECTATOR)) return;
         if (!((event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)2) ||
                 (!event.getPlayer().isSneaking() && Config.getQuickProtectAction() == (byte)1))) return;
