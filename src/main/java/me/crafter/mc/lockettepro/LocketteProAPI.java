@@ -512,9 +512,6 @@ public class LocketteProAPI {
     public static int getTimerSingleDoor(Block block){
         Block[] doors = getDoors(block);
         if (doors == null) return 0;
-        Block relativeup = doors[1].getRelative(BlockFace.UP);
-        int relativeuptimer = getTimerOnSigns(relativeup);
-        if (relativeuptimer > 0) return relativeuptimer;
         int doors0 = getTimerOnSigns(doors[0]);
         if (doors0 > 0) return doors0;
         int doors1 = getTimerOnSigns(doors[1]);
