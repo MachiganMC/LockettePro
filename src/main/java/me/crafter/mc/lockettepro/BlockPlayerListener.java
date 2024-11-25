@@ -19,6 +19,7 @@ import org.bukkit.event.player.PlayerBucketFillEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerTakeLecternBookEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.scheduler.BukkitRunnable;
 
@@ -37,6 +38,20 @@ public class BlockPlayerListener implements Listener {
         e.setCancelled(true);
     }
 
+    private static boolean playerCannotBuildHere(PlayerInteractEvent e) {
+        if (e.getClickedBlock() == null) return true;
+        BlockPlaceEvent event = new BlockPlaceEvent(
+                e.getClickedBlock(),
+                e.getClickedBlock().getState(),
+                e.getClickedBlock(),
+                new ItemStack(Material.AIR),
+                e.getPlayer(),
+                true,
+                EquipmentSlot.HAND);
+        Bukkit.getServer().getPluginManager().callEvent(event);
+        return event.isCancelled();
+    }
+
     // Quick protect for chests
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onPlayerQuickLockChest(PlayerInteractEvent event) {
@@ -51,6 +66,7 @@ public class BlockPlayerListener implements Listener {
         if (!Arrays.asList(BlockFace.NORTH, BlockFace.WEST, BlockFace.SOUTH, BlockFace.EAST).contains(blockface)) return;
         Block block = event.getClickedBlock();
         if (block == null) return;
+        if (playerCannotBuildHere(event)) return;
         if (Dependency.isProtectedFrom(block, player)) return; // blockwise
         if (Dependency.isProtectedFrom(block.getRelative(event.getBlockFace()), player)) return; // signwise
         // Check whether locking location is obstructed
